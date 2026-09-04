@@ -1,0 +1,18 @@
+[
+  {
+    "id": "FF-MTMP6K69-QML",
+    "name": "Suresh Kumar",
+    "phone": "9876543210",
+    "email": "",
+    "service": "Double Door Refrigerator Repair",
+    "appliance": "Refrigerator",
+    "brand": "Samsung",
+    "problem": "Not cooling properly",
+    "location": "Kukatpally",
+    "preferredDate": "",
+    "message": "",
+    "sourcePage": "/",
+    "status": "New",
+    "createdAt": "2026-09-04T08:34:10.209Z"
+  }
+]
