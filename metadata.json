@@ -2,5 +2,7 @@
   "name": "FridgeFix Hyderabad",
   "description": "Fast, reliable and affordable refrigerator & home appliance repair in Hyderabad. Verified technicians, ₹199 inspection, 90-day warranty, same-day doorstep service.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

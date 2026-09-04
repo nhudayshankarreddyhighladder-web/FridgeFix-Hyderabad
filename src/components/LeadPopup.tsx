@@ -29,17 +29,20 @@ export const LeadPopup: React.FC = () => {
     // Initialize queue with dummy leads
     leadQueueRef.current = [...initialDummyLeads];
 
-    // Fetch any real recent leads from backend
+    // Fetch any real recent leads from backend (PHP or Express)
     const fetchRecentLeads = async () => {
       try {
-        const res = await fetch('/api/leads/recent');
+        let res = await fetch('/api/get-leads.php');
+        if (!res.ok && res.status === 404) {
+          res = await fetch('/api/leads/recent');
+        }
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.leads)) {
             data.leads.forEach((realLead: PublicLeadNotification) => {
               // Add real lead to front of queue
               if (!leadQueueRef.current.some((l) => l.id === realLead.id)) {
-                leadQueueRef.current.unshift({ ...realLead, isReal: true });
+                leadQueueRef.current.unshift({ ...realLead, isReal: Boolean(realLead.isReal) });
               }
             });
           }

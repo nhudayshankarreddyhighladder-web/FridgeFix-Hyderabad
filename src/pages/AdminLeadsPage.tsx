@@ -90,7 +90,15 @@ export const AdminLeadsPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <a
+              href="/admin/login.php"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 shadow-xs transition-colors"
+              title="Open standalone cPanel PHP session-protected admin portal"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>cPanel PHP Admin</span>
+            </a>
             <button
               onClick={fetchLeads}
               disabled={loading}

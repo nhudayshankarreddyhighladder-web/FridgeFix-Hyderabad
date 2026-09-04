@@ -89,17 +89,21 @@ app.get('/api/health', (_req: Request, res: Response) => {
 });
 
 // GET recent public leads (sanitized for privacy - first name, area, service only)
-app.get('/api/leads/recent', (_req: Request, res: Response) => {
+const handleGetLeads = (_req: Request, res: Response) => {
   // Recalculate mins
   const updated = recentRealLeads.map((l) => ({
     ...l,
     mins: Math.max(0, Math.round((Date.now() - (l as any)._timestamp || Date.now()) / 60000)),
   }));
-  res.json({ success: true, leads: updated });
-});
+  res.json({ success: true, count: updated.length, leads: updated });
+};
 
-// POST submit a new lead
-app.post('/api/leads', async (req: Request, res: Response): Promise<any> => {
+app.get('/api/leads/recent', handleGetLeads);
+app.get('/api/get-leads.php', handleGetLeads);
+app.get('/api/get-leads', handleGetLeads);
+
+// Lead submission handler function
+const handleLeadSubmission = async (req: Request, res: Response): Promise<any> => {
   try {
     const {
       name,
@@ -348,7 +352,11 @@ To send live transactional emails, add EMAIL_API_KEY to your environment secrets
       error: 'An internal server error occurred while processing your request. Please call our 24×7 helpline directly at 7416 225 140.',
     });
   }
-});
+};
+
+app.post('/api/leads', handleLeadSubmission);
+app.post('/api/submit-lead.php', handleLeadSubmission);
+app.post('/api/submit-lead', handleLeadSubmission);
 
 // Admin endpoints
 app.get('/api/admin/leads', (_req: Request, res: Response) => {

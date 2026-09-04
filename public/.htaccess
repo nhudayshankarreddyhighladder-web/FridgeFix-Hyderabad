@@ -1,0 +1,75 @@
+# ====================================================================
+# FridgeFix Hyderabad - Apache & cPanel Configuration
+# ====================================================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # 1. Route API aliases to corresponding PHP scripts
+    RewriteRule ^api/submit-lead/?$ api/submit-lead.php [L,QSA]
+    RewriteRule ^api/get-leads/?$ api/get-leads.php [L,QSA]
+    RewriteRule ^api/leads/recent/?$ api/get-leads.php [L,QSA]
+    RewriteRule ^api/leads/?$ api/submit-lead.php [L,QSA]
+
+    # 2. Prevent rewrite loop for existing files, directories, and scripts
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # 3. Single Page Application (SPA) Fallback for React Router
+    # Send all other requests to index.html
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# ====================================================================
+# Security Protections
+# ====================================================================
+
+# Prevent directory browsing
+Options -Indexes
+
+# Block direct web access to sensitive files
+<FilesMatch "^(\.env|\.git|\.htaccess|database\.sql|leads\.json|package\.json|tsconfig\.json|server\.ts)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Add Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ====================================================================
+# Gzip Compression (Speed & Bandwidth Optimization)
+# ====================================================================
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
+    AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json
+    AddOutputFilterByType DEFLATE application/xml application/xhtml+xml application/rss+xml
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ====================================================================
+# Browser Caching (Fast Loading for Returning Visitors)
+# ====================================================================
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 1 month"
+    ExpiresByType text/html "access plus 0 seconds"
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>

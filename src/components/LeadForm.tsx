@@ -113,7 +113,8 @@ export const LeadForm: React.FC<LeadFormProps> = ({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/leads', {
+      // Submit to cPanel PHP endpoint with dual fallback support
+      let response = await fetch('/api/submit-lead.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -121,6 +122,17 @@ export const LeadForm: React.FC<LeadFormProps> = ({
           sourcePage: location.pathname,
         }),
       });
+
+      if (!response.ok && response.status === 404) {
+        response = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...formData,
+            sourcePage: location.pathname,
+          }),
+        });
+      }
 
       const data = await response.json();
 
