@@ -5,6 +5,23 @@
 # Prevent directory browsing
 Options -Indexes
 
+# Default landing page order
+DirectoryIndex index.html index.php
+
+# Disable PHP error display in production
+<IfModule mod_php.c>
+    php_flag display_errors off
+    php_flag display_startup_errors off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag display_errors off
+    php_flag display_startup_errors off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag display_errors off
+    php_flag display_startup_errors off
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
@@ -12,16 +29,17 @@ Options -Indexes
     # 1. Block direct browser access to sensitive database folder
     RewriteRule ^database(/.*)?$ - [F,L]
 
-    # 2. Route API aliases to corresponding PHP scripts
+    # 2. Prevent rewrite loop for existing files, directories, and scripts
+    # (Ensures /api/*.php, /admin/*, and /assets/* are served directly)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # 3. Route API aliases without .php extension to corresponding PHP scripts
     RewriteRule ^api/submit-lead/?$ api/submit-lead.php [L,QSA]
     RewriteRule ^api/get-leads/?$ api/get-leads.php [L,QSA]
     RewriteRule ^api/leads/recent/?$ api/get-leads.php [L,QSA]
     RewriteRule ^api/leads/?$ api/submit-lead.php [L,QSA]
-
-    # 3. Prevent rewrite loop for existing files, directories, and scripts
-    RewriteCond %{REQUEST_FILENAME} -f [OR]
-    RewriteCond %{REQUEST_FILENAME} -d
-    RewriteRule ^ - [L]
 
     # 4. Single Page Application (SPA) Fallback for React Router
     # Send all non-file/directory requests to index.html
