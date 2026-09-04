@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $authenticated = false;
         $adminUserData = null;
+        $pdo = null;
 
         // Try authenticating with database
         try {
@@ -41,12 +42,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Update last login timestamp
                 $updateStmt = $pdo->prepare('UPDATE admin_users SET last_login = NOW() WHERE id = :id');
                 $updateStmt->execute([':id' => $adminUserData['id']]);
+
+                // Check if password rehash is recommended by newer algorithm
+                if (password_needs_rehash($adminUserData['password_hash'], PASSWORD_DEFAULT)) {
+                    $newHash = password_hash($password, PASSWORD_DEFAULT);
+                    $rehashStmt = $pdo->prepare('UPDATE admin_users SET password_hash = :hash WHERE id = :id');
+                    $rehashStmt->execute([':hash' => $newHash, ':id' => $adminUserData['id']]);
+                }
             }
         } catch (Exception $e) {
             error_log('[Admin Login DB Error]: ' . $e->getMessage());
         }
 
-        // Emergency fallback check if DB table hasn't been imported yet
+        // Emergency fallback check if DB table hasn't been imported yet or fresh setup
         if (!$authenticated && $username === 'admin' && $password === 'admin@FridgeFix2025') {
             $authenticated = true;
             $adminUserData = [
@@ -55,6 +63,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'full_name' => 'FridgeFix Manager',
                 'role'      => 'super_admin'
             ];
+
+            // If DB is connected, synchronize the password hash
+            if ($pdo) {
+                try {
+                    $freshHash = password_hash($password, PASSWORD_DEFAULT);
+                    $syncStmt = $pdo->prepare('UPDATE admin_users SET password_hash = :hash, last_login = NOW() WHERE username = "admin"');
+                    $syncStmt->execute([':hash' => $freshHash]);
+                } catch (Exception $e) {
+                    // Non-fatal
+                }
+            }
         }
 
         if ($authenticated) {
@@ -64,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['admin_username']  = $adminUserData['username'] ?? 'admin';
             $_SESSION['admin_name']      = $adminUserData['full_name'] ?? 'Admin';
             $_SESSION['admin_role']      = $adminUserData['role'] ?? 'admin';
+            $_SESSION['csrf_token']      = bin2hex(random_bytes(32));
 
             header('Location: index.php');
             exit;
@@ -80,7 +100,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FridgeFix Admin Portal - Login</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/x-icon" href="/app-favicon.ico">
 </head>
 <body class="login-body">
     <div class="login-card">
@@ -89,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 FF
             </div>
             <h2>FridgeFix Hyderabad</h2>
-            <p>Admin Lead & Service Dispatch Portal</p>
+            <p>Admin Lead &amp; Service Dispatch Portal</p>
         </div>
 
         <?php if ($error): ?>

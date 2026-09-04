@@ -1,36 +1,37 @@
 # ====================================================================
-# FridgeFix Hyderabad - Apache & cPanel Configuration
-# ====================================================================
-
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteBase /
-
-    # 1. Route API aliases to corresponding PHP scripts
-    RewriteRule ^api/submit-lead/?$ api/submit-lead.php [L,QSA]
-    RewriteRule ^api/get-leads/?$ api/get-leads.php [L,QSA]
-    RewriteRule ^api/leads/recent/?$ api/get-leads.php [L,QSA]
-    RewriteRule ^api/leads/?$ api/submit-lead.php [L,QSA]
-
-    # 2. Prevent rewrite loop for existing files, directories, and scripts
-    RewriteCond %{REQUEST_FILENAME} -f [OR]
-    RewriteCond %{REQUEST_FILENAME} -d
-    RewriteRule ^ - [L]
-
-    # 3. Single Page Application (SPA) Fallback for React Router
-    # Send all other requests to index.html
-    RewriteRule ^ index.html [L]
-</IfModule>
-
-# ====================================================================
-# Security Protections
+# FridgeFix Hyderabad - Apache & cPanel Production Configuration
 # ====================================================================
 
 # Prevent directory browsing
 Options -Indexes
 
-# Block direct web access to sensitive files
-<FilesMatch "^(\.env|\.git|\.htaccess|database\.sql|leads\.json|package\.json|tsconfig\.json|server\.ts)$">
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # 1. Block direct browser access to sensitive database folder
+    RewriteRule ^database(/.*)?$ - [F,L]
+
+    # 2. Route API aliases to corresponding PHP scripts
+    RewriteRule ^api/submit-lead/?$ api/submit-lead.php [L,QSA]
+    RewriteRule ^api/get-leads/?$ api/get-leads.php [L,QSA]
+    RewriteRule ^api/leads/recent/?$ api/get-leads.php [L,QSA]
+    RewriteRule ^api/leads/?$ api/submit-lead.php [L,QSA]
+
+    # 3. Prevent rewrite loop for existing files, directories, and scripts
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # 4. Single Page Application (SPA) Fallback for React Router
+    # Send all non-file/directory requests to index.html
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# ====================================================================
+# Security Protections - Block direct web access to sensitive files
+# ====================================================================
+<FilesMatch "^(config\.php|\.env|\.env\.example|\.git|\.htaccess|database\.sql|leads\.json|package\.json|package-lock\.json|tsconfig\.json|server\.ts|INSTALLATION\.md)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

@@ -47,25 +47,28 @@ define('LEAD_RECIPIENT_NAME',  'FridgeFix Hyderabad Dispatch');
 // ====================================================================
 // 3. SMTP & EMAIL CONFIGURATION
 // ====================================================================
-// Set to 'smtp' to use authenticated SMTP (recommended for cPanel Exim/Gmail/SendGrid/Zoho),
+// Set to 'smtp' for authenticated SMTP (recommended for cPanel Exim/Gmail/Zoho/SendGrid),
 // or 'mail' to use standard cPanel internal sendmail/PHP mail()
-define('MAIL_METHOD', getenv('MAIL_METHOD') ?: 'mail');
+define('MAIL_METHOD', getenv('MAIL_METHOD') ?: 'smtp');
 
-// Server-side SMTP credentials
+// Server-side SMTP credentials (Never exposed to frontend JavaScript)
 define('SMTP_HOST',       getenv('SMTP_HOST')       ?: 'mail.yourdomain.com');
-define('SMTP_PORT',       getenv('SMTP_PORT')       ?: 465); // 465 for SSL, 587 for TLS
+define('SMTP_PORT',       (int)(getenv('SMTP_PORT') ?: 465)); // 465 for SSL, 587 for TLS
 define('SMTP_USERNAME',   getenv('SMTP_USERNAME')   ?: (getenv('SMTP_USER') ?: 'notifications@yourdomain.com'));
 define('SMTP_PASSWORD',   getenv('SMTP_PASSWORD')   ?: (getenv('SMTP_PASS') ?: ''));
 define('SMTP_ENCRYPTION', getenv('SMTP_ENCRYPTION') ?: (getenv('SMTP_SECURE') ?: 'ssl')); // 'ssl' or 'tls'
+
+// SSL/TLS Certificate Verification (Strict verification enabled by default)
+define('SMTP_VERIFY_PEER', getenv('SMTP_VERIFY_PEER') !== false ? filter_var(getenv('SMTP_VERIFY_PEER'), FILTER_VALIDATE_BOOLEAN) : true);
 
 // Sender Details
 define('SMTP_FROM_EMAIL', getenv('SMTP_FROM_EMAIL') ?: 'no-reply@fridgefixhyderabad.com');
 define('SMTP_FROM_NAME',  getenv('SMTP_FROM_NAME')  ?: 'FridgeFix Hyderabad');
 
 // Backward compatibility aliases
-define('SMTP_USER',   SMTP_USERNAME);
-define('SMTP_PASS',   SMTP_PASSWORD);
-define('SMTP_SECURE', SMTP_ENCRYPTION);
+define('SMTP_USER',       SMTP_USERNAME);
+define('SMTP_PASS',       SMTP_PASSWORD);
+define('SMTP_SECURE',     SMTP_ENCRYPTION);
 define('MAIL_FROM_EMAIL', SMTP_FROM_EMAIL);
 define('MAIL_FROM_NAME',  SMTP_FROM_NAME);
 

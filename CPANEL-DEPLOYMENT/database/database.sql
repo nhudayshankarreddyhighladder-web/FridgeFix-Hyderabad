@@ -59,12 +59,12 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
 -- Default credentials:
 -- Username: admin
 -- Password: admin@FridgeFix2025
--- (Change password immediately in the Admin panel after installation!)
+-- (Change password in the Admin panel after installation)
 -- --------------------------------------------------------
 INSERT INTO `admin_users` (`username`, `password_hash`, `email`, `full_name`, `role`, `created_at`) 
 VALUES (
   'admin',
-  '$2y$10$tZ2R8k0w8eH3R37vU6L9QOD7H3M4u5G4E4n7F6q1I2u8Z7Y9b2K2m', -- Hash for: admin@FridgeFix2025
+  '$2y$10$g4YbQPgOvT5FMwP7R7opkeNk96OCX/.d1skdihraMZnG6MebGCU4.', -- Valid bcrypt hash for admin@FridgeFix2025
   'Coolcomfortsolutions13@gmail.com',
   'FridgeFix Manager',
   'super_admin',

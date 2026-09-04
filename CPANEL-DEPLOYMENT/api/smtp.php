@@ -6,6 +6,7 @@
  * Standalone SMTP socket client compatible with cPanel Exim, Gmail,
  * Zoho, SendGrid, and standard hosting servers.
  * Does not require composer or external dependencies.
+ * Uses secure TLS/SSL verification by default.
  */
 
 class SimpleSMTP {
@@ -14,16 +15,16 @@ class SimpleSMTP {
     private $username;
     private $password;
     private $encryption;
-    private $timeout = 20;
+    private $timeout = 25;
     private $socket = null;
     private $lastError = '';
 
     public function __construct($host, $port, $username, $password, $encryption = 'ssl') {
-        $this->host = $host;
+        $this->host = trim($host);
         $this->port = (int)$port;
-        $this->username = $username;
+        $this->username = trim($username);
         $this->password = $password;
-        $this->encryption = strtolower($encryption);
+        $this->encryption = strtolower(trim($encryption));
     }
 
     public function getLastError() {
@@ -57,13 +58,18 @@ class SimpleSMTP {
 
         $remoteAddress = $protocol . $this->host . ':' . $this->port;
         
-        $context = stream_context_create([
+        // Secure SSL/TLS certificate verification (enabled by default)
+        $verifyPeer = defined('SMTP_VERIFY_PEER') ? (bool)SMTP_VERIFY_PEER : true;
+
+        $contextOptions = [
             'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true
+                'verify_peer'       => $verifyPeer,
+                'verify_peer_name'  => $verifyPeer,
+                'allow_self_signed' => !$verifyPeer
             ]
-        ]);
+        ];
+
+        $context = stream_context_create($contextOptions);
 
         $this->socket = @stream_socket_client(
             $remoteAddress,
@@ -79,6 +85,9 @@ class SimpleSMTP {
             return false;
         }
 
+        // Set socket timeout for subsequent reads
+        stream_set_timeout($this->socket, $this->timeout);
+
         $res = $this->readResponse();
         if (substr($res, 0, 3) !== '220') {
             $this->lastError = "Server rejected connection: $res";
@@ -90,12 +99,16 @@ class SimpleSMTP {
         $clientHost = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost';
         $res = $this->sendCommand("EHLO $clientHost");
 
-        // STARTTLS if requested on port 587
-        if ($this->encryption === 'tls') {
+        // STARTTLS if requested on port 587 or encryption = tls
+        if ($this->encryption === 'tls' || $this->port === 587) {
             $res = $this->sendCommand("STARTTLS");
             if (substr($res, 0, 3) === '220') {
-                if (!stream_socket_enable_crypto($this->socket, true, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT)) {
-                    $this->lastError = "Failed to establish TLS encryption";
+                $cryptoMethod = STREAM_CRYPTO_METHOD_TLS_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+                if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) {
+                    $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+                }
+                if (!stream_socket_enable_crypto($this->socket, true, $cryptoMethod)) {
+                    $this->lastError = "Failed to establish TLS encryption with SMTP host";
                     fclose($this->socket);
                     return false;
                 }
@@ -121,7 +134,7 @@ class SimpleSMTP {
 
             $res = $this->sendCommand(base64_encode($this->password));
             if (substr($res, 0, 3) !== '235') {
-                $this->lastError = "Authentication failed (bad credentials): $res";
+                $this->lastError = "Authentication failed (invalid credentials): $res";
                 fclose($this->socket);
                 return false;
             }
@@ -146,32 +159,36 @@ class SimpleSMTP {
         // DATA
         $res = $this->sendCommand("DATA");
         if (substr($res, 0, 3) !== '354') {
-            $this->lastError = "DATA rejected: $res";
+            $this->lastError = "DATA command rejected: $res";
             fclose($this->socket);
             return false;
         }
 
         // Build Email MIME Content
-        $boundary = "==Multipart_Boundary_x" . md5(time()) . "x";
+        $boundary = "==Multipart_Boundary_x" . md5(time() . mt_rand()) . "x";
         $headers  = "From: $fromName <$fromEmail>\r\n";
         $headers .= "Reply-To: $fromEmail\r\n";
         $headers .= "To: <$toEmail>\r\n";
         $headers .= "Subject: $subject\r\n";
+        $headers .= "Date: " . date('r') . "\r\n";
+        $headers .= "Message-ID: <" . time() . "." . md5($subject) . "@" . (!empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'fridgefixhyderabad.com') . ">\r\n";
+        $headers .= "X-Mailer: FridgeFix Native SMTP\r\n";
         $headers .= "MIME-Version: 1.0\r\n";
 
         if (!empty($bodyHtml)) {
             $headers .= "Content-Type: multipart/alternative; boundary=\"$boundary\"\r\n\r\n";
             $message  = "--$boundary\r\n";
             $message .= "Content-Type: text/plain; charset=UTF-8\r\n";
-            $message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+            $message .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
             $message .= $bodyText . "\r\n\r\n";
             $message .= "--$boundary\r\n";
             $message .= "Content-Type: text/html; charset=UTF-8\r\n";
-            $message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+            $message .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
             $message .= $bodyHtml . "\r\n\r\n";
             $message .= "--$boundary--\r\n";
         } else {
-            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
+            $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            $headers .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
             $message = $bodyText . "\r\n";
         }
 
@@ -179,7 +196,7 @@ class SimpleSMTP {
         $res = $this->readResponse();
 
         if (substr($res, 0, 3) !== '250') {
-            $this->lastError = "Message data rejected: $res";
+            $this->lastError = "Message content rejected: $res";
             fclose($this->socket);
             return false;
         }

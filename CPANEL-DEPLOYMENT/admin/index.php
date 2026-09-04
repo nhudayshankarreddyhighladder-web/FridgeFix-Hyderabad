@@ -16,6 +16,12 @@ if (empty($_SESSION['admin_logged_in'])) {
     exit;
 }
 
+// Generate CSRF token if not set
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+
 $notice = null;
 $error = null;
 $pdo = null;
@@ -23,31 +29,37 @@ $pdo = null;
 try {
     $pdo = get_db_connection();
 } catch (Exception $e) {
-    $error = 'Database Connection Error: ' . $e->getMessage() . '. Please verify api/config.php or import database/database.sql.';
+    $error = 'Database Connection Error. Please verify api/config.php credentials or run database diagnostic.';
 }
 
-// Handle Status or Note Updates
+// Handle Status, Notes, or Delete Actions with CSRF Protection
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
-    $action = $_POST['action'] ?? '';
-    $leadId = trim($_POST['lead_id'] ?? '');
+    $submittedCsrf = $_POST['csrf_token'] ?? '';
+    
+    if (!hash_equals($_SESSION['csrf_token'] ?? '', $submittedCsrf)) {
+        $error = 'Security verification failed (invalid CSRF token). Please refresh and try again.';
+    } else {
+        $action = $_POST['action'] ?? '';
+        $leadId = trim($_POST['lead_id'] ?? '');
 
-    if ($action === 'update_status' && !empty($leadId)) {
-        $newStatus = trim($_POST['status'] ?? 'New');
-        $validStatuses = ['New', 'Contacted', 'In Progress', 'Completed', 'Cancelled'];
-        if (in_array($newStatus, $validStatuses, true)) {
-            $stmt = $pdo->prepare('UPDATE leads SET status = :status, updated_at = NOW() WHERE id = :id');
-            $stmt->execute([':status' => $newStatus, ':id' => $leadId]);
-            $notice = "Lead {$leadId} status updated to \"{$newStatus}\".";
+        if ($action === 'update_status' && !empty($leadId)) {
+            $newStatus = trim($_POST['status'] ?? 'New');
+            $validStatuses = ['New', 'Contacted', 'In Progress', 'Completed', 'Cancelled'];
+            if (in_array($newStatus, $validStatuses, true)) {
+                $stmt = $pdo->prepare('UPDATE leads SET status = :status, updated_at = NOW() WHERE id = :id');
+                $stmt->execute([':status' => $newStatus, ':id' => $leadId]);
+                $notice = "Lead {$leadId} status updated to \"{$newStatus}\".";
+            }
+        } elseif ($action === 'update_notes' && !empty($leadId)) {
+            $notes = trim($_POST['notes'] ?? '');
+            $stmt = $pdo->prepare('UPDATE leads SET notes = :notes, updated_at = NOW() WHERE id = :id');
+            $stmt->execute([':notes' => $notes, ':id' => $leadId]);
+            $notice = "Notes saved for lead {$leadId}.";
+        } elseif ($action === 'delete_lead' && !empty($leadId)) {
+            $stmt = $pdo->prepare('DELETE FROM leads WHERE id = :id');
+            $stmt->execute([':id' => $leadId]);
+            $notice = "Lead {$leadId} was permanently deleted.";
         }
-    } elseif ($action === 'update_notes' && !empty($leadId)) {
-        $notes = trim($_POST['notes'] ?? '');
-        $stmt = $pdo->prepare('UPDATE leads SET notes = :notes, updated_at = NOW() WHERE id = :id');
-        $stmt->execute([':notes' => $notes, ':id' => $leadId]);
-        $notice = "Notes saved for lead {$leadId}.";
-    } elseif ($action === 'delete_lead' && !empty($leadId)) {
-        $stmt = $pdo->prepare('DELETE FROM leads WHERE id = :id');
-        $stmt->execute([':id' => $leadId]);
-        $notice = "Lead {$leadId} was permanently deleted.";
     }
 }
 
@@ -95,7 +107,7 @@ if ($pdo) {
             $stats['cancelled']   = (int)($statsRow['count_cancelled'] ?? 0);
         }
 
-        // Build query for leads list
+        // Build query for leads list with parameterized filters
         $sql = 'SELECT * FROM leads WHERE 1=1';
         $params = [];
 
@@ -116,7 +128,7 @@ if ($pdo) {
         $leads = $leadsStmt->fetchAll();
 
     } catch (Exception $ex) {
-        $error = 'Query Error: ' . $ex->getMessage();
+        $error = 'Query Error. Please check database tables.';
     }
 }
 ?>
@@ -127,7 +139,6 @@ if ($pdo) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FridgeFix Hyderabad - Admin Lead Management</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="icon" type="image/x-icon" href="/app-favicon.ico">
 </head>
 <body>
 
@@ -137,7 +148,7 @@ if ($pdo) {
             <div class="brand-logo">FF</div>
             <div>
                 <h1>FridgeFix Hyderabad</h1>
-                <p>Doorstep Refrigerator & Appliance Service Dispatch</p>
+                <p>Doorstep Refrigerator &amp; Appliance Service Dispatch</p>
             </div>
         </div>
 
@@ -311,6 +322,7 @@ if ($pdo) {
                                     </td>
                                     <td>
                                         <form method="POST" action="index.php" style="display:flex; flex-direction:column; gap:4px;">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="action" value="update_status">
                                             <input type="hidden" name="lead_id" value="<?= htmlspecialchars($lead['id']) ?>">
                                             <select name="status" class="status-select" onchange="this.form.submit()">
@@ -325,6 +337,7 @@ if ($pdo) {
                                     </td>
                                     <td>
                                         <form method="POST" action="index.php" onsubmit="return confirm('Are you sure you want to delete lead <?= htmlspecialchars($lead['id']) ?>?');">
+                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                                             <input type="hidden" name="action" value="delete_lead">
                                             <input type="hidden" name="lead_id" value="<?= htmlspecialchars($lead['id']) ?>">
                                             <button type="submit" style="background:none; border:none; color:#ef4444; font-size:11px; cursor:pointer; padding:4px 6px; border-radius:4px;" title="Delete Lead">

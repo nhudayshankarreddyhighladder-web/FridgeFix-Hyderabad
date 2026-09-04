@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ], 405);
 }
 
-// Read raw JSON body or form POST data
+// Read raw JSON body or standard form POST data
 $inputData = [];
 $rawInput = file_get_contents('php://input');
 
@@ -132,7 +132,7 @@ try {
     }
 } catch (Exception $e) {
     error_log('[Rate Limit Check Error]: ' . $e->getMessage());
-    // Continue even if rate check check fails
+    // Continue even if rate check fails
 }
 
 // -------------------------------------------------------------
@@ -186,7 +186,7 @@ try {
 $emailSent = false;
 $emailError = null;
 
-// Required exact email subject
+// Exact required email subject
 $emailSubject = "New Service Lead - FridgeFix Hyderabad";
 $istTimeFormatted = date('d M Y, h:i A');
 
@@ -196,7 +196,7 @@ $problemDisplay = !empty($problem) ? $problem : 'Standard Inspection / Service N
 $preferredDateDisplay = !empty($preferredDate) ? $preferredDate : 'Earliest available slot';
 $messageDisplay = !empty($message) ? $message : 'None';
 
-// Required exact plaintext email body format
+// Exact required plaintext email body
 $emailPlainText = <<<TEXT
 NEW SERVICE LEAD
 
@@ -267,47 +267,46 @@ $emailHtml = <<<HTML
     </div>
     <div class="footer">
       FridgeFix Hyderabad • Doorstep Refrigerator & Appliance Repair<br>
-      Notification dispatched to: {LEAD_RECIPIENT_EMAIL}
+      Notification dispatched to: Coolcomfortsolutions13@gmail.com
     </div>
   </div>
 </body>
 </html>
 HTML;
 
-// Dispatch via SMTP or standard cPanel PHP mail()
-if (MAIL_METHOD === 'smtp') {
-    if (empty(SMTP_HOST) || empty(SMTP_USERNAME) || empty(SMTP_PASSWORD)) {
-        $emailSent = false;
-        $emailError = 'SMTP configuration is incomplete in api/config.php (host, username, or password missing).';
-    } else {
-        try {
-            $smtp = new SimpleSMTP(
-                SMTP_HOST,
-                SMTP_PORT,
-                SMTP_USERNAME,
-                SMTP_PASSWORD,
-                SMTP_ENCRYPTION
-            );
-            $sent = $smtp->send(
-                SMTP_FROM_EMAIL,
-                SMTP_FROM_NAME,
-                LEAD_RECIPIENT_EMAIL,
-                $emailSubject,
-                $emailPlainText,
-                $emailHtml
-            );
-            if ($sent) {
-                $emailSent = true;
-            } else {
-                $emailError = $smtp->getLastError();
-            }
-        } catch (Exception $ex) {
-            $emailError = $ex->getMessage();
+// Dispatch via Authenticated SMTP or fallback to cPanel PHP mail()
+if (MAIL_METHOD === 'smtp' && !empty(SMTP_HOST) && SMTP_HOST !== 'mail.yourdomain.com') {
+    try {
+        $smtp = new SimpleSMTP(
+            SMTP_HOST,
+            SMTP_PORT,
+            SMTP_USERNAME,
+            SMTP_PASSWORD,
+            SMTP_ENCRYPTION
+        );
+        $sent = $smtp->send(
+            SMTP_FROM_EMAIL,
+            SMTP_FROM_NAME,
+            LEAD_RECIPIENT_EMAIL,
+            $emailSubject,
+            $emailPlainText,
+            $emailHtml
+        );
+        if ($sent) {
+            $emailSent = true;
+        } else {
+            $emailError = $smtp->getLastError();
+            error_log('[SMTP Error, falling back to mail()]: ' . $emailError);
         }
+    } catch (Exception $ex) {
+        $emailError = $ex->getMessage();
+        error_log('[SMTP Exception]: ' . $emailError);
     }
-} else {
-    // Native cPanel PHP mail()
-    $boundary = "==Multipart_Boundary_x" . md5(time()) . "x";
+}
+
+// Fallback to PHP mail() if SMTP was not used or failed
+if (!$emailSent) {
+    $boundary = "==Multipart_Boundary_x" . md5(time() . mt_rand()) . "x";
     $headers = [
         'MIME-Version: 1.0',
         'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
@@ -318,11 +317,11 @@ if (MAIL_METHOD === 'smtp') {
 
     $body  = "--$boundary\r\n";
     $body .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
     $body .= $emailPlainText . "\r\n\r\n";
     $body .= "--$boundary\r\n";
     $body .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $body .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
     $body .= $emailHtml . "\r\n\r\n";
     $body .= "--$boundary--\r\n";
 
@@ -335,18 +334,21 @@ if (MAIL_METHOD === 'smtp') {
         );
         if ($mailSent) {
             $emailSent = true;
-        } else {
-            $emailError = 'Native PHP mail() returned false. Check cPanel Exim mail service or set MAIL_METHOD to smtp in api/config.php.';
+            $emailError = null; // Cleared since fallback succeeded
+        } elseif (!$emailError) {
+            $emailError = 'Native PHP mail() returned false. Check cPanel Exim mail service.';
         }
     } catch (Exception $ex) {
-        $emailError = $ex->getMessage();
+        if (!$emailError) {
+            $emailError = $ex->getMessage();
+        }
     }
 }
 
 // -------------------------------------------------------------
 // 7. Extract Privacy-Safe Public Lead for Real-Time Popup
 // -------------------------------------------------------------
-// Only First Name, Locality, Service, 0 mins
+// Only First Name, Locality, Service, 0 mins. Never phone, email, or message!
 $nameParts = explode(' ', $name);
 $firstName = !empty($nameParts[0]) ? $nameParts[0] : 'Customer';
 
